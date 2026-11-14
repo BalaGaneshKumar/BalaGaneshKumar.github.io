@@ -1419,6 +1419,7 @@ body[data-theme="dark"] .hs-bot{filter:drop-shadow(0 0 16px rgba(245,166,35,.22)
 .rv-actions{display:flex;gap:.8em;flex-wrap:wrap;}
 .rv-btn{all:unset;box-sizing:border-box;cursor:pointer;padding:.65em 1.3em;border-radius:999px;font-size:.95em;font-weight:700;color:var(--text-primary);background:var(--surface);border:1px solid var(--edge);box-shadow:3px 3px 8px var(--shadow-dark),-3px -3px 8px var(--shadow-light);}
 .rv-btn:focus-visible{outline:2px solid var(--text-primary);outline-offset:3px;}
+.rbtn.rv-busy{opacity:.7;cursor:progress;}
 /* touch devices show the desktop layout zoomed out, so vh-based section heights would leave huge empty gaps */
 @media (hover:none) and (pointer:coarse){#home,#projects{min-height:0 !important;}}
 /* ===== MOBILE LAYOUT ===== */
@@ -1470,6 +1471,13 @@ body[data-theme="dark"] .hs-bot{filter:drop-shadow(0 0 16px rgba(245,166,35,.22)
     <h2 id="rvTitle">Resume download unavailable</h2>
     <p id="rvText">The resume download is temporarily unavailable. Please raise a request to access the candidate&rsquo;s resume.</p>
     <div class="rv-actions"><a id="rvPrimary" class="rv-btn rv-primary" href="#" target="_blank" rel="noopener noreferrer">Request resume</a><button type="button" id="rvClose" class="rv-btn">Close</button></div>
+  </div>
+</div>
+<div class="rv-modal" id="rvVerify" hidden>
+  <div class="rv-card" role="dialog" aria-modal="true" aria-labelledby="rvVTitle">
+    <h2 id="rvVTitle">Quick security check</h2>
+    <p>Please complete the check below so we know you&rsquo;re a real person.</p>
+    <div id="rvTs"></div>
   </div>
 </div>
 
@@ -2029,39 +2037,26 @@ document.querySelectorAll('#navLinks a').forEach(link => {
   n.querySelector('.dn-close').addEventListener('click',function(){ n.remove(); try{sessionStorage.setItem('dnHide','1');}catch(e){} });
 })();
 
-// click-to-reveal contact details (assembled only on click) + Resume link
+// Contact details + resume are protected by Cloudflare Turnstile. They live in a Cloudflare Worker, not in this page.
 (function(){
-  const D={e:'YmFsYWdhbmVzaGt1bWFyMTA1NzE2NEBnbWFpbC5jb20=',p:'KzkxNjM4MTMyOTI0MQ=='};
-  const val=k=>atob(D[k==='email'?'e':'p']);
-  document.querySelectorAll('[data-reveal]').forEach(function(a){
-    a.addEventListener('click',function(ev){
-      const kind=a.dataset.reveal, v=val(kind), href=(kind==='email'?'mail'+'to:':'t'+'el:')+v;
-      if(a.classList.contains('cta-pill')){ ev.preventDefault(); window.location.href=href; return; }
-      if(a.dataset.revealed){ return; }                      // already revealed: let the link open the mail app / dialer
-      ev.preventDefault();
-      const lab=a.querySelector('.rv-label'); if(lab) lab.textContent=v;
-      a.setAttribute('href',href); a.dataset.revealed='1'; a.removeAttribute('title');
-    });
-  });
-  // ---- Resume: try the secure download first; if it is unavailable, show the request popup
-  const CFG={endpoint:'', form:'https://drive.google.com/file/d/17TWE1zdEyG3mIIBN2RqkJqtFaOmxAhPe/view', linkedin:'https://linkedin.com/in/bala-ganesh-kumar-d-7545a5138'};   // endpoint = Cloudflare Worker address (added later)
-  const rb=document.getElementById('resumeBtn'), modal=document.getElementById('rvModal');
-  if(!rb||!modal) return;
+  const CFG={site:'0x4AAAAAAF_FvUnkD2akRl_S', endpoint:'https://portfolio-gate.balaganeshkumard.workers.dev',
+             api:'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', form:'https://drive.google.com/file/d/17TWE1zdEyG3mIIBN2RqkJqtFaOmxAhPe/view', linkedin:'https://linkedin.com/in/bala-ganesh-kumar-d-7545a5138'};
+  const zoomK=function(){ return Math.max(1,document.documentElement.clientWidth/Math.max(1,screen.width)); };
+  const modal=document.getElementById('rvModal'), verify=document.getElementById('rvVerify'), tsBox=document.getElementById('rvTs');
   const primary=document.getElementById('rvPrimary'), closeBtn=document.getElementById('rvClose');
-  function tryDownload(){
-    return new Promise(function(resolve,reject){
-      if(!CFG.endpoint){ reject(new Error('not configured')); return; }
-      reject(new Error('not implemented'));              // Turnstile check + Worker download goes here later
-    });
+  const mTitle=document.getElementById('rvTitle'), mText=document.getElementById('rvText');
+  if(!modal||!verify) return;
+  let lastFocus=null, cancelCur=null;
+
+  /* popup shown when something is unavailable */
+  function openModal(title,text,useForm){
+    modal.style.fontSize=(15*zoomK())+'px';
+    mTitle.textContent=title; mText.textContent=text;
+    const f=useForm&&CFG.form;
+    primary.href=f?CFG.form:CFG.linkedin; primary.textContent=f?'Request resume':'Contact on LinkedIn';
+    lastFocus=document.activeElement; modal.hidden=false; primary.focus();
   }
-  function openModal(){
-    const k=Math.max(1,document.documentElement.clientWidth/Math.max(1,screen.width));
-    modal.style.fontSize=(15*k)+'px';
-    primary.href=CFG.form||CFG.linkedin; primary.textContent=CFG.form?'Request resume':'Contact on LinkedIn';
-    modal.hidden=false; primary.focus();
-  }
-  function closeModal(){ modal.hidden=true; rb.focus(); }
-  rb.addEventListener('click',function(ev){ ev.preventDefault(); tryDownload().catch(openModal); });
+  function closeModal(){ modal.hidden=true; if(lastFocus&&lastFocus.focus) lastFocus.focus(); }
   closeBtn.addEventListener('click',closeModal);
   modal.addEventListener('click',function(ev){ if(ev.target===modal) closeModal(); });
   modal.addEventListener('keydown',function(ev){
@@ -2069,7 +2064,96 @@ document.querySelectorAll('#navLinks a').forEach(link => {
     const f=[primary,closeBtn], i=f.indexOf(document.activeElement);
     ev.preventDefault(); f[(i+(ev.shiftKey?-1:1)+f.length)%f.length].focus();
   });
-  document.addEventListener('keydown',function(ev){ if(!modal.hidden && ev.key==='Escape') closeModal(); });
+  verify.addEventListener('click',function(ev){ if(ev.target===verify&&cancelCur) cancelCur(); });
+  document.addEventListener('keydown',function(ev){
+    if(ev.key!=='Escape') return;
+    if(!modal.hidden) closeModal(); else if(cancelCur) cancelCur();
+  });
+  const resumeFail=function(){ openModal('Resume download unavailable','The resume download is temporarily unavailable. Please raise a request to access the candidate’s resume.',true); };
+  const contactFail=function(){ openModal('Contact details unavailable','The contact details could not be loaded right now. Please reach out through LinkedIn instead.',false); };
+
+  /* Cloudflare Turnstile (script is loaded only when someone clicks) */
+  let tsLoading=null;
+  function loadTS(){
+    if(window.turnstile) return Promise.resolve();
+    if(tsLoading) return tsLoading;
+    tsLoading=new Promise(function(res,rej){
+      const s=document.createElement('script'); s.src=CFG.api; s.async=true; s.onload=res;
+      s.onerror=function(){ tsLoading=null; rej(new Error('ts_load')); };
+      document.head.appendChild(s);
+    });
+    return tsLoading;
+  }
+  function getToken(){
+    return loadTS().then(function(){ return new Promise(function(resolve,reject){
+      tsBox.innerHTML=''; const k=zoomK(); verify.style.fontSize=(15*k)+'px'; tsBox.style.zoom=k>1?k:'';
+      let id=null, done=false;
+      const timer=setTimeout(function(){ finish(reject,new Error('timeout')); },45000);
+      function finish(fn,v){
+        if(done) return; done=true; clearTimeout(timer); cancelCur=null; verify.hidden=true;
+        try{ if(id!==null) window.turnstile.remove(id); }catch(e){}
+        fn(v);
+      }
+      cancelCur=function(){ finish(reject,new Error('cancelled')); };
+      id=window.turnstile.render(tsBox,{
+        sitekey:CFG.site, appearance:'interaction-only', theme:(document.body.getAttribute('data-theme')==='dark'?'dark':'light'),
+        callback:function(t){ finish(resolve,t); },
+        'error-callback':function(){ finish(reject,new Error('ts_error')); },
+        'timeout-callback':function(){ finish(reject,new Error('ts_timeout')); },
+        'before-interactive-callback':function(){ verify.hidden=false; }
+      });
+    }); });
+  }
+  function callGate(path){
+    return getToken().then(function(t){
+      return fetch(CFG.endpoint+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})});
+    });
+  }
+
+  /* contact details (email / phone): one verified request returns both */
+  let contactP=null;
+  function getContact(){
+    if(!contactP){
+      contactP=callGate('/contact').then(function(r){ if(!r.ok) throw new Error('gate_'+r.status); return r.json(); })
+        .then(function(d){ if(!d.email&&!d.phone) throw new Error('empty'); return d; });
+      contactP.catch(function(){ contactP=null; });
+    }
+    return contactP;
+  }
+  document.querySelectorAll('[data-reveal]').forEach(function(a){
+    a.addEventListener('click',function(ev){
+      const kind=a.dataset.reveal;
+      if(a.classList.contains('cta-pill')){
+        ev.preventDefault();
+        getContact().then(function(c){ if(c.email) window.location.href='mail'+'to:'+c.email; else contactFail(); }).catch(function(e){ if(!e||e.message!=='cancelled') contactFail(); });
+        return;
+      }
+      if(a.dataset.revealed) return;                 // already revealed: the link opens the mail app / dialer
+      ev.preventDefault();
+      if(a.dataset.busy) return; a.dataset.busy='1';
+      const lab=a.querySelector('.rv-label'), orig=lab?lab.textContent:'';
+      if(lab) lab.textContent='Checking…';
+      getContact().then(function(c){
+        const v=kind==='email'?c.email:c.phone; if(!v) throw new Error('empty');
+        if(lab) lab.textContent=v;
+        a.setAttribute('href',(kind==='email'?'mail'+'to:':'t'+'el:')+v); a.dataset.revealed='1'; a.removeAttribute('title');
+      }).catch(function(e){ if(lab) lab.textContent=orig; if(!e||e.message!=='cancelled') contactFail(); })
+        .then(function(){ delete a.dataset.busy; });
+    });
+  });
+
+  /* resume: verified download, or the request popup if it is unavailable */
+  const rb=document.getElementById('resumeBtn');
+  if(rb) rb.addEventListener('click',function(ev){
+    ev.preventDefault(); if(rb.dataset.busy) return; rb.dataset.busy='1'; rb.classList.add('rv-busy');
+    callGate('/resume').then(function(r){ if(!r.ok) throw new Error('gate_'+r.status); return r.blob(); }).then(function(blob){
+      if(!blob||blob.size<100) throw new Error('empty');
+      const url=URL.createObjectURL(blob), a=document.createElement('a');
+      a.href=url; a.download='BalaGaneshKumar-Resume.pdf'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); },15000);
+    }).catch(function(e){ if(!e||e.message!=='cancelled') resumeFail(); })
+      .then(function(){ delete rb.dataset.busy; rb.classList.remove('rv-busy'); });
+  });
 })();
 // hero scene: logo tiles -> Skills, AI board -> Projects (same smooth scroll as the nav)
 document.querySelectorAll('.hero-scene a[data-goto]').forEach(a => {
