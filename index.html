@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <title>BalaGaneshKumar D | Portfolio</title>
+<meta name="description" content="Portfolio of BalaGaneshKumar D, Cloud &amp; Infrastructure Automation Support Engineer: AWS, Azure, GCP, CI/CD, AI projects. Contact and resume are bot-protected.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="BalaGaneshKumar D | Portfolio">
+<meta property="og:description" content="Portfolio of BalaGaneshKumar D, Cloud &amp; Infrastructure Automation Support Engineer: AWS, Azure, GCP, CI/CD, AI projects. Contact and resume are bot-protected.">
+<meta property="og:url" content="https://balaganeshkumar.github.io/">
 <style>
   :root{
     --bg:#efe3d2;
@@ -1420,6 +1425,9 @@ body[data-theme="dark"] .hs-bot{filter:drop-shadow(0 0 16px rgba(245,166,35,.22)
 .rv-btn{all:unset;box-sizing:border-box;cursor:pointer;padding:.65em 1.3em;border-radius:999px;font-size:.95em;font-weight:700;color:var(--text-primary);background:var(--surface);border:1px solid var(--edge);box-shadow:3px 3px 8px var(--shadow-dark),-3px -3px 8px var(--shadow-light);}
 .rv-btn:focus-visible{outline:2px solid var(--text-primary);outline-offset:3px;}
 .rbtn.rv-busy{opacity:.7;cursor:progress;}
+.legal-line{padding:0 8px 26px;max-width:900px;font-size:12px;line-height:1.55;color:var(--text-secondary);opacity:.9;}
+.rv-detail{font-size:.8em !important;opacity:.85;margin:-.7em 0 1.1em !important;word-break:break-word;}
+#rvTs{min-height:65px;margin:0 0 1.1em;}
 /* touch devices show the desktop layout zoomed out, so vh-based section heights would leave huge empty gaps */
 @media (hover:none) and (pointer:coarse){#home,#projects{min-height:0 !important;}}
 /* ===== MOBILE LAYOUT ===== */
@@ -1470,14 +1478,16 @@ body[data-theme="dark"] .hs-bot{filter:drop-shadow(0 0 16px rgba(245,166,35,.22)
   <div class="rv-card" role="dialog" aria-modal="true" aria-labelledby="rvTitle" aria-describedby="rvText">
     <h2 id="rvTitle">Resume download unavailable</h2>
     <p id="rvText">The resume download is temporarily unavailable. Please raise a request to access the candidate&rsquo;s resume.</p>
+    <p id="rvDetail" class="rv-detail" hidden></p>
     <div class="rv-actions"><a id="rvPrimary" class="rv-btn rv-primary" href="#" target="_blank" rel="noopener noreferrer">Request resume</a><button type="button" id="rvClose" class="rv-btn">Close</button></div>
   </div>
 </div>
 <div class="rv-modal" id="rvVerify" hidden>
   <div class="rv-card" role="dialog" aria-modal="true" aria-labelledby="rvVTitle">
     <h2 id="rvVTitle">Quick security check</h2>
-    <p>Please complete the check below so we know you&rsquo;re a real person.</p>
+    <p>Please wait a moment while we confirm you&rsquo;re a real person.</p>
     <div id="rvTs"></div>
+    <div class="rv-actions"><button type="button" id="rvVCancel" class="rv-btn">Cancel</button></div>
   </div>
 </div>
 
@@ -1989,6 +1999,7 @@ body[data-theme="dark"] .hs-bot{filter:drop-shadow(0 0 16px rgba(245,166,35,.22)
     </div>
     <div class="contact-footer-tag">Automate &middot; Support &middot; Innovate</div>
   </div>
+<div class="legal-line">&copy; 2026 BalaGaneshKumar D. All rights reserved. AWS, Microsoft Azure, Google Cloud, Jenkins, Chef, Git and HCLTech are trademarks of their respective owners, used here for identification only; no affiliation or endorsement is implied.</div>
 </div>
 </section>
 
@@ -2043,15 +2054,17 @@ document.querySelectorAll('#navLinks a').forEach(link => {
              api:'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', form:'https://drive.google.com/file/d/17TWE1zdEyG3mIIBN2RqkJqtFaOmxAhPe/view', linkedin:'https://linkedin.com/in/bala-ganesh-kumar-d-7545a5138'};
   const zoomK=function(){ return Math.max(1,document.documentElement.clientWidth/Math.max(1,screen.width)); };
   const modal=document.getElementById('rvModal'), verify=document.getElementById('rvVerify'), tsBox=document.getElementById('rvTs');
-  const primary=document.getElementById('rvPrimary'), closeBtn=document.getElementById('rvClose');
-  const mTitle=document.getElementById('rvTitle'), mText=document.getElementById('rvText');
+  const primary=document.getElementById('rvPrimary'), closeBtn=document.getElementById('rvClose'), vCancel=document.getElementById('rvVCancel');
+  const mTitle=document.getElementById('rvTitle'), mText=document.getElementById('rvText'), mDetail=document.getElementById('rvDetail');
   if(!modal||!verify) return;
   let lastFocus=null, cancelCur=null;
 
-  /* popup shown when something is unavailable */
-  function openModal(title,text,useForm){
+  /* popup shown when something is unavailable (with a short technical reason) */
+  function openModal(title,text,useForm,err){
     modal.style.fontSize=(15*zoomK())+'px';
     mTitle.textContent=title; mText.textContent=text;
+    const why=err&&err.message&&err.message!=='cancelled'?err.message:'';
+    mDetail.textContent=why?('Details: '+why):''; mDetail.hidden=!why;
     const f=useForm&&CFG.form;
     primary.href=f?CFG.form:CFG.linkedin; primary.textContent=f?'Request resume':'Contact on LinkedIn';
     lastFocus=document.activeElement; modal.hidden=false; primary.focus();
@@ -2064,13 +2077,13 @@ document.querySelectorAll('#navLinks a').forEach(link => {
     const f=[primary,closeBtn], i=f.indexOf(document.activeElement);
     ev.preventDefault(); f[(i+(ev.shiftKey?-1:1)+f.length)%f.length].focus();
   });
-  verify.addEventListener('click',function(ev){ if(ev.target===verify&&cancelCur) cancelCur(); });
+  vCancel.addEventListener('click',function(){ if(cancelCur) cancelCur(); });
   document.addEventListener('keydown',function(ev){
     if(ev.key!=='Escape') return;
     if(!modal.hidden) closeModal(); else if(cancelCur) cancelCur();
   });
-  const resumeFail=function(){ openModal('Resume download unavailable','The resume download is temporarily unavailable. Please raise a request to access the candidate’s resume.',true); };
-  const contactFail=function(){ openModal('Contact details unavailable','The contact details could not be loaded right now. Please reach out through LinkedIn instead.',false); };
+  const resumeFail=function(e){ openModal('Resume download unavailable','The resume download is temporarily unavailable. Please raise a request to access the candidate’s resume.',true,e); };
+  const contactFail=function(e){ openModal('Contact details unavailable','The contact details could not be loaded right now. Please reach out through LinkedIn instead.',false,e); };
 
   /* Cloudflare Turnstile (script is loaded only when someone clicks) */
   let tsLoading=null;
@@ -2086,9 +2099,10 @@ document.querySelectorAll('#navLinks a').forEach(link => {
   }
   function getToken(){
     return loadTS().then(function(){ return new Promise(function(resolve,reject){
-      tsBox.innerHTML=''; const k=zoomK(); verify.style.fontSize=(15*k)+'px'; tsBox.style.zoom=k>1?k:'';
+      const k=zoomK(); verify.style.fontSize=(15*k)+'px'; tsBox.style.zoom=k>1?k:'';
+      tsBox.innerHTML=''; verify.hidden=false;          // the widget is rendered in a VISIBLE box (hidden boxes can make it fail)
       let id=null, done=false;
-      const timer=setTimeout(function(){ finish(reject,new Error('timeout')); },45000);
+      const timer=setTimeout(function(){ finish(reject,new Error('timeout')); },40000);
       function finish(fn,v){
         if(done) return; done=true; clearTimeout(timer); cancelCur=null; verify.hidden=true;
         try{ if(id!==null) window.turnstile.remove(id); }catch(e){}
@@ -2096,17 +2110,20 @@ document.querySelectorAll('#navLinks a').forEach(link => {
       }
       cancelCur=function(){ finish(reject,new Error('cancelled')); };
       id=window.turnstile.render(tsBox,{
-        sitekey:CFG.site, appearance:'interaction-only', theme:(document.body.getAttribute('data-theme')==='dark'?'dark':'light'),
+        sitekey:CFG.site, appearance:'always', theme:(document.body.getAttribute('data-theme')==='dark'?'dark':'light'),
         callback:function(t){ finish(resolve,t); },
-        'error-callback':function(){ finish(reject,new Error('ts_error')); },
-        'timeout-callback':function(){ finish(reject,new Error('ts_timeout')); },
-        'before-interactive-callback':function(){ verify.hidden=false; }
+        'error-callback':function(code){ finish(reject,new Error('ts_error:'+code)); },
+        'timeout-callback':function(){ finish(reject,new Error('ts_timeout')); }
       });
     }); });
   }
   function callGate(path){
     return getToken().then(function(t){
-      return fetch(CFG.endpoint+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})});
+      return fetch(CFG.endpoint+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})
+        .catch(function(){ throw new Error('network'); });
+    }).then(function(r){
+      if(r.ok) return r;
+      return r.json().catch(function(){ return {}; }).then(function(j){ throw new Error('gate_'+r.status+(j&&j.error?':'+j.error:'')+(j&&j.why?':'+j.why:'')); });
     });
   }
 
@@ -2114,7 +2131,7 @@ document.querySelectorAll('#navLinks a').forEach(link => {
   let contactP=null;
   function getContact(){
     if(!contactP){
-      contactP=callGate('/contact').then(function(r){ if(!r.ok) throw new Error('gate_'+r.status); return r.json(); })
+      contactP=callGate('/contact').then(function(r){ return r.json(); })
         .then(function(d){ if(!d.email&&!d.phone) throw new Error('empty'); return d; });
       contactP.catch(function(){ contactP=null; });
     }
@@ -2125,7 +2142,7 @@ document.querySelectorAll('#navLinks a').forEach(link => {
       const kind=a.dataset.reveal;
       if(a.classList.contains('cta-pill')){
         ev.preventDefault();
-        getContact().then(function(c){ if(c.email) window.location.href='mail'+'to:'+c.email; else contactFail(); }).catch(function(e){ if(!e||e.message!=='cancelled') contactFail(); });
+        getContact().then(function(c){ if(c.email) window.location.href='mail'+'to:'+c.email; else contactFail(new Error('empty')); }).catch(function(e){ if(!e||e.message!=='cancelled') contactFail(e); });
         return;
       }
       if(a.dataset.revealed) return;                 // already revealed: the link opens the mail app / dialer
@@ -2137,7 +2154,7 @@ document.querySelectorAll('#navLinks a').forEach(link => {
         const v=kind==='email'?c.email:c.phone; if(!v) throw new Error('empty');
         if(lab) lab.textContent=v;
         a.setAttribute('href',(kind==='email'?'mail'+'to:':'t'+'el:')+v); a.dataset.revealed='1'; a.removeAttribute('title');
-      }).catch(function(e){ if(lab) lab.textContent=orig; if(!e||e.message!=='cancelled') contactFail(); })
+      }).catch(function(e){ if(lab) lab.textContent=orig; if(!e||e.message!=='cancelled') contactFail(e); })
         .then(function(){ delete a.dataset.busy; });
     });
   });
@@ -2146,12 +2163,12 @@ document.querySelectorAll('#navLinks a').forEach(link => {
   const rb=document.getElementById('resumeBtn');
   if(rb) rb.addEventListener('click',function(ev){
     ev.preventDefault(); if(rb.dataset.busy) return; rb.dataset.busy='1'; rb.classList.add('rv-busy');
-    callGate('/resume').then(function(r){ if(!r.ok) throw new Error('gate_'+r.status); return r.blob(); }).then(function(blob){
+    callGate('/resume').then(function(r){ return r.blob(); }).then(function(blob){
       if(!blob||blob.size<100) throw new Error('empty');
       const url=URL.createObjectURL(blob), a=document.createElement('a');
       a.href=url; a.download='BalaGaneshKumar-Resume.pdf'; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function(){ URL.revokeObjectURL(url); },15000);
-    }).catch(function(e){ if(!e||e.message!=='cancelled') resumeFail(); })
+    }).catch(function(e){ if(!e||e.message!=='cancelled') resumeFail(e); })
       .then(function(){ delete rb.dataset.busy; rb.classList.remove('rv-busy'); });
   });
 })();
