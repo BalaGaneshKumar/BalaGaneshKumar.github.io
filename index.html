@@ -1425,6 +1425,11 @@ body[data-theme="dark"] .hs-bot{filter:drop-shadow(0 0 16px rgba(245,166,35,.22)
 .rv-btn{all:unset;box-sizing:border-box;cursor:pointer;padding:.65em 1.3em;border-radius:999px;font-size:.95em;font-weight:700;color:var(--text-primary);background:var(--surface);border:1px solid var(--edge);box-shadow:3px 3px 8px var(--shadow-dark),-3px -3px 8px var(--shadow-light);}
 .rv-btn:focus-visible{outline:2px solid var(--text-primary);outline-offset:3px;}
 .rbtn.rv-busy{opacity:.7;cursor:progress;}
+.rv-ring{position:fixed;pointer-events:none;z-index:10001;overflow:visible;transition:opacity .35s ease;--led:#F2A33A;}
+body[data-theme="dark"] .rv-ring{--led:#FFC04A;}
+.rv-ring .rv-track{fill:none;stroke:var(--led);stroke-opacity:.16;stroke-width:3;}
+.rv-ring .rv-bar{fill:none;stroke:var(--led);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 3px var(--led)) drop-shadow(0 0 9px var(--led));}
+.rv-ring.rv-out{opacity:0;}
 .legal-line{padding:0 8px 26px;max-width:900px;font-size:12px;line-height:1.55;color:var(--text-secondary);opacity:.9;}
 .rv-detail{font-size:.8em !important;opacity:.85;margin:-.7em 0 1.1em !important;word-break:break-word;}
 #rvTs{min-height:65px;margin:0 0 1.1em;}
@@ -2059,7 +2064,49 @@ document.querySelectorAll('#navLinks a').forEach(link => {
   if(!modal||!verify) return;
   let lastFocus=null, cancelCur=null;
 
-  /* popup shown when something is unavailable (with a short technical reason) */
+  /* ---- glowing LED ring that runs around a button while it works (starts at the top, goes clockwise) ---- */
+  const reduceMotion=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const NOOP={start:function(){},stage:function(){},done:function(){},fail:function(){},cancel:function(){}};
+  function ringFor(el){
+    if(reduceMotion||!el) return NOOP;
+    const NS='http://www.w3.org/2000/svg', GAP=4, STROKE=3, PAD=14, O=GAP+STROKE/2;
+    let svg=null, bar=null, track=null, raf=0, t0=0, shown=0, stageT=0, finishing=false, dead=false;
+    function place(){
+      const r=el.getBoundingClientRect(), rad=parseFloat(getComputedStyle(el).borderTopLeftRadius)||0;
+      const W=r.width+2*O, H=r.height+2*O, R=Math.max(0,Math.min(rad+O,W/2,H/2));
+      svg.style.left=(r.left-O-PAD)+'px'; svg.style.top=(r.top-O-PAD)+'px';
+      svg.setAttribute('width',W+2*PAD); svg.setAttribute('height',H+2*PAD);
+      const x=PAD,y=PAD;
+      const d='M'+(x+W/2)+' '+y+' H'+(x+W-R)+' A'+R+' '+R+' 0 0 1 '+(x+W)+' '+(y+R)+' V'+(y+H-R)+' A'+R+' '+R+' 0 0 1 '+(x+W-R)+' '+(y+H)+
+              ' H'+(x+R)+' A'+R+' '+R+' 0 0 1 '+x+' '+(y+H-R)+' V'+(y+R)+' A'+R+' '+R+' 0 0 1 '+(x+R)+' '+y+' H'+(x+W/2);
+      track.setAttribute('d',d); bar.setAttribute('d',d);
+    }
+    function frame(now){
+      if(dead) return;
+      const t=(now-t0)/1000, timeT=88*(1-Math.exp(-t/2.2));            // creeps towards ~88% while waiting
+      const target=finishing?100:Math.max(stageT,timeT);
+      shown+=(target-shown)*(finishing?0.28:0.10);
+      if(finishing&&shown>99.5){ shown=100; paint(); setTimeout(fade,280); return; }
+      paint(); raf=requestAnimationFrame(frame);
+    }
+    function paint(){ bar.setAttribute('stroke-dasharray',shown.toFixed(2)+' 200'); place(); }
+    function fade(){ if(!svg) return; svg.classList.add('rv-out'); const s=svg; svg=null; setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s); },400); }
+    return {
+      start:function(){
+        svg=document.createElementNS(NS,'svg'); svg.setAttribute('class','rv-ring'); svg.setAttribute('aria-hidden','true');
+        track=document.createElementNS(NS,'path'); track.setAttribute('class','rv-track'); track.setAttribute('pathLength','100');
+        bar=document.createElementNS(NS,'path'); bar.setAttribute('class','rv-bar'); bar.setAttribute('pathLength','100'); bar.setAttribute('stroke-dasharray','0 200');
+        svg.appendChild(track); svg.appendChild(bar); document.body.appendChild(svg);
+        t0=performance.now(); place(); raf=requestAnimationFrame(frame);
+      },
+      stage:function(p){ stageT=Math.max(stageT,p*100); },
+      done:function(){ if(svg) finishing=true; },
+      fail:function(){ dead=true; cancelAnimationFrame(raf); fade(); },
+      cancel:function(){ dead=true; cancelAnimationFrame(raf); fade(); }
+    };
+  }
+
+  /* ---- popup shown when something is unavailable (with a short technical reason) ---- */
   function openModal(title,text,useForm,err){
     modal.style.fontSize=(15*zoomK())+'px';
     mTitle.textContent=title; mText.textContent=text;
@@ -2084,8 +2131,9 @@ document.querySelectorAll('#navLinks a').forEach(link => {
   });
   const resumeFail=function(e){ openModal('Resume download unavailable','The resume download is temporarily unavailable. Please raise a request to access the candidate’s resume.',true,e); };
   const contactFail=function(e){ openModal('Contact details unavailable','The contact details could not be loaded right now. Please reach out through LinkedIn instead.',false,e); };
+  const isCancel=function(e){ return !!e&&e.message==='cancelled'; };
 
-  /* Cloudflare Turnstile (script is loaded only when someone clicks) */
+  /* ---- Cloudflare Turnstile (script is loaded only when someone clicks) ---- */
   let tsLoading=null;
   function loadTS(){
     if(window.turnstile) return Promise.resolve();
@@ -2097,8 +2145,8 @@ document.querySelectorAll('#navLinks a').forEach(link => {
     });
     return tsLoading;
   }
-  function getToken(){
-    return loadTS().then(function(){ return new Promise(function(resolve,reject){
+  function getToken(pr){
+    return loadTS().then(function(){ pr.stage(0.2); return new Promise(function(resolve,reject){
       const k=zoomK(); verify.style.fontSize=(15*k)+'px'; tsBox.style.zoom=k>1?k:'';
       tsBox.innerHTML=''; verify.hidden=false;          // the widget is rendered in a VISIBLE box (hidden boxes can make it fail)
       let id=null, done=false;
@@ -2117,24 +2165,30 @@ document.querySelectorAll('#navLinks a').forEach(link => {
       });
     }); });
   }
-  function callGate(path){
-    return getToken().then(function(t){
+  function callGate(path,pr){
+    return getToken(pr).then(function(t){
+      pr.stage(0.62);
       return fetch(CFG.endpoint+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})
         .catch(function(){ throw new Error('network'); });
     }).then(function(r){
+      pr.stage(0.9);
       if(r.ok) return r;
       return r.json().catch(function(){ return {}; }).then(function(j){ throw new Error('gate_'+r.status+(j&&j.error?':'+j.error:'')+(j&&j.why?':'+j.why:'')); });
     });
   }
 
-  /* contact details (email / phone): one verified request returns both */
-  let contactP=null;
-  function getContact(){
-    if(!contactP){
-      contactP=callGate('/contact').then(function(r){ return r.json(); })
-        .then(function(d){ if(!d.email&&!d.phone) throw new Error('empty'); return d; });
-      contactP.catch(function(){ contactP=null; });
+  /* ---- contact details (email / phone): one verified request returns both ---- */
+  let contactP=null, contactDone=false;
+  function getContact(pr){
+    if(contactP){
+      if(pr&&!contactDone){ pr.start(); contactP.then(function(){ pr.done(); },function(){ pr.cancel(); }); }
+      return contactP;
     }
+    pr=pr||NOOP; pr.start();
+    contactP=callGate('/contact',pr).then(function(r){ return r.json(); })
+      .then(function(d){ if(!d.email&&!d.phone) throw new Error('empty'); contactDone=true; pr.done(); return d; },
+            function(e){ if(isCancel(e)) pr.cancel(); else pr.fail(); throw e; });
+    contactP.catch(function(){ contactP=null; contactDone=false; });
     return contactP;
   }
   document.querySelectorAll('[data-reveal]').forEach(function(a){
@@ -2142,7 +2196,7 @@ document.querySelectorAll('#navLinks a').forEach(link => {
       const kind=a.dataset.reveal;
       if(a.classList.contains('cta-pill')){
         ev.preventDefault();
-        getContact().then(function(c){ if(c.email) window.location.href='mail'+'to:'+c.email; else contactFail(new Error('empty')); }).catch(function(e){ if(!e||e.message!=='cancelled') contactFail(e); });
+        getContact(ringFor(a)).then(function(c){ if(c.email) window.location.href='mail'+'to:'+c.email; else contactFail(new Error('empty')); }).catch(function(e){ if(!isCancel(e)) contactFail(e); });
         return;
       }
       if(a.dataset.revealed) return;                 // already revealed: the link opens the mail app / dialer
@@ -2150,25 +2204,27 @@ document.querySelectorAll('#navLinks a').forEach(link => {
       if(a.dataset.busy) return; a.dataset.busy='1';
       const lab=a.querySelector('.rv-label'), orig=lab?lab.textContent:'';
       if(lab) lab.textContent='Checking…';
-      getContact().then(function(c){
+      getContact(ringFor(a)).then(function(c){
         const v=kind==='email'?c.email:c.phone; if(!v) throw new Error('empty');
         if(lab) lab.textContent=v;
         a.setAttribute('href',(kind==='email'?'mail'+'to:':'t'+'el:')+v); a.dataset.revealed='1'; a.removeAttribute('title');
-      }).catch(function(e){ if(lab) lab.textContent=orig; if(!e||e.message!=='cancelled') contactFail(e); })
+      }).catch(function(e){ if(lab) lab.textContent=orig; if(!isCancel(e)) contactFail(e); })
         .then(function(){ delete a.dataset.busy; });
     });
   });
 
-  /* resume: verified download, or the request popup if it is unavailable */
+  /* ---- resume: verified download, or the request popup if it is unavailable ---- */
   const rb=document.getElementById('resumeBtn');
   if(rb) rb.addEventListener('click',function(ev){
     ev.preventDefault(); if(rb.dataset.busy) return; rb.dataset.busy='1'; rb.classList.add('rv-busy');
-    callGate('/resume').then(function(r){ return r.blob(); }).then(function(blob){
+    const pr=ringFor(rb); pr.start();
+    callGate('/resume',pr).then(function(r){ return r.blob(); }).then(function(blob){
       if(!blob||blob.size<100) throw new Error('empty');
       const url=URL.createObjectURL(blob), a=document.createElement('a');
       a.href=url; a.download='BalaGaneshKumar-Resume.pdf'; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function(){ URL.revokeObjectURL(url); },15000);
-    }).catch(function(e){ if(!e||e.message!=='cancelled') resumeFail(e); })
+      pr.done();
+    }).catch(function(e){ if(isCancel(e)) pr.cancel(); else { pr.fail(); resumeFail(e); } })
       .then(function(){ delete rb.dataset.busy; rb.classList.remove('rv-busy'); });
   });
 })();
