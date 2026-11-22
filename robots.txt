@@ -1,0 +1,33 @@
+# robots.txt for https://balaganeshkumar.github.io
+# Allowed: major search engines, LinkedIn link previews, and the Claude and Gemini crawlers.
+# (Copilot uses the Bing index, so allowing Bingbot covers it.)
+# Every other crawler, including other AI-training and data-scraping bots, is asked to stay out.
+# Only well-behaved crawlers obey this file; contact details and the resume
+# are separately protected by a Cloudflare Turnstile check.
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: *
+Disallow: /
