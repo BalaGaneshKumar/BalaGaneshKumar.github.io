@@ -2145,7 +2145,15 @@ document.querySelectorAll('#navLinks a').forEach(link => {
     if(ev.key!=='Escape') return;
     if(!modal.hidden) closeModal(); else if(cancelCur) cancelCur();
   });
-  const resumeFail=function(e){ openModal('Resume download unavailable','The resume download is temporarily unavailable. Please raise a request to access the candidate’s resume.',true,e); };
+  const resumeText=function(e){
+    const c=e&&e.message?e.message:'';
+    if(c==='ts_load') return 'Your browser or network blocked the security check (often an ad blocker or privacy extension). Try a private window, or request the resume below.';
+    if(c==='network'||/^gate_5/.test(c)) return 'The resume service could not be reached. Please request the resume below.';
+    if(/^gate_403/.test(c)) return 'The security check was not accepted. Please try again or request the resume below.';
+    if(c==='timeout'||c==='ts_timeout') return 'The security check took too long. Please try again or request the resume below.';
+    return 'The resume download is temporarily unavailable. Please raise a request to access the candidate’s resume.';
+  };
+  const resumeFail=function(e){ openModal('Resume download unavailable',resumeText(e),true,e); };
   const contactFail=function(e){ openModal('Contact details unavailable','The contact details could not be loaded right now. Please reach out through LinkedIn instead.',false,e); };
   const isCancel=function(e){ return !!e&&e.message==='cancelled'; };
 
